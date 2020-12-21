@@ -276,13 +276,13 @@ PyObject *PyUnicode_FromString(const char *u)
   return proc(u);
 }
 
-#ifdef Py_LIMITED_API
+#undef _Py_Dealloc
+
 void _Py_Dealloc(PyObject *ob)
 {
-  FUNC(void, _Py_Dealloc, (PyObject *));
+  FUNC(void, _Py_Dealloc_inline, (PyObject *));
   proc(ob);
 }
-#endif
 
 char *PyBytes_AsString(PyObject *string)
 {
@@ -361,11 +361,26 @@ int PyObject_SetAttrString(PyObject *o, const char *attr_name, PyObject *v)
   return proc(o, attr_name, v);
 }
 
+#if (PY_VERSION_HEX < 0x03090000)
+
 PyObject *PyCFunction_NewEx(PyMethodDef *methdef, PyObject *self, PyObject *foo)
 {
   FUNC(PyObject *, PyCFunction_NewEx, (PyMethodDef *, PyObject *, PyObject *));
   return proc(methdef, self, foo);
 }
+
+#endif
+
+#if (PY_VERSION_HEX >= 0x03090000)
+
+PyObject *PyCMethod_New(PyMethodDef *ml, PyObject *self, PyObject *module, PyTypeObject *cls)
+{
+  FUNC(PyObject *, PyCMethod_New, (PyMethodDef *, PyObject *, PyObject *, PyTypeObject *));
+  return proc(ml, self, module, cls);
+
+}
+
+#endif
 
 ////////////////////////////////////////////////////////////////
 

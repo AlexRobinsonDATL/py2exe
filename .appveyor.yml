@@ -1,14 +1,13 @@
-image: Visual Studio 2015
+image: Visual Studio 2019
 
 environment:
   MSVC_VERSION: "Visual Studio 14"
   INCLUDE: "C:\\Program Files\\Microsoft SDKs\\Windows\\v7.0\\Include;C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\include;C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.10586.0\\ucrt"
   LIB: "C:\\Program Files\\Microsoft SDKs\\Windows\\v7.0\\lib;C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\lib;C:\\Program Files (x86)\\Windows Kits\\10\\lib;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.10586.0\\ucrt\\x86"
-  
+
   matrix:
-    -  PYTHON: "C:\\Python35"
-       PYTHON_VERSION: 3.5
-       PYTHON_ARCH: 32
+    -  PYTHON: "C:\\Python38-x64"
+       SDIST: yes
 
     -  PYTHON: "C:\\Python36"
        PYTHON_VERSION: 3.6
@@ -18,9 +17,13 @@ environment:
        PYTHON_VERSION: 3.7
        PYTHON_ARCH: 32
 
-    -  PYTHON: "C:\\Python35-x64"
-       PYTHON_VERSION: 3.5
-       PYTHON_ARCH: 64
+    -  PYTHON: "C:\\Python38"
+       PYTHON_VERSION: 3.8
+       PYTHON_ARCH: 32
+
+    -  PYTHON: "C:\\Python39"
+       PYTHON_VERSION: 3.9
+       PYTHON_ARCH: 32
 
     -  PYTHON: "C:\\Python36-x64"
        PYTHON_VERSION: 3.6
@@ -28,6 +31,14 @@ environment:
 
     -  PYTHON: "C:\\Python37-x64"
        PYTHON_VERSION: 3.7
+       PYTHON_ARCH: 64
+
+    -  PYTHON: "C:\\Python38-x64"
+       PYTHON_VERSION: 3.8
+       PYTHON_ARCH: 64
+
+    -  PYTHON: "C:\\Python39-x64"
+       PYTHON_VERSION: 3.9
        PYTHON_ARCH: 64
 
 configuration: Release
@@ -41,17 +52,19 @@ init:
   - python -m site
   - python -m pip install -U pip setuptools wheel
   - python -m pip install -U cachetools pefile
+  - set PATH=%PATH:C:\Program Files\Meson\;=%
 
 for:
-  - 
+  -
     matrix:
       only:
-        - PYTHON_VERSION: 3.5
-          PYTHON_ARCH: 32
+        - SDIST: yes
     install:
-        - python setup.py bdist_wheel --python-tag cp35 --plat-name win32
+        - python setup.py sdist
+    test_script:
+        - dir dist
 
-  - 
+  -
     matrix:
       only:
         - PYTHON_VERSION: 3.6
@@ -59,23 +72,31 @@ for:
     install:
         - python setup.py bdist_wheel --python-tag cp36 --plat-name win32
 
-  - 
+  -
     matrix:
       only:
         - PYTHON_VERSION: 3.7
           PYTHON_ARCH: 32
     install:
         - python setup.py bdist_wheel --python-tag cp37 --plat-name win32
-        
-  - 
+
+  -
     matrix:
       only:
-        - PYTHON_VERSION: 3.5
-          PYTHON_ARCH: 64
+        - PYTHON_VERSION: 3.8
+          PYTHON_ARCH: 32
     install:
-        - python setup.py bdist_wheel --python-tag cp35 --plat-name win_amd64
+        - python setup.py bdist_wheel --python-tag cp38 --plat-name win32
 
-  - 
+  -
+    matrix:
+      only:
+        - PYTHON_VERSION: 3.9
+          PYTHON_ARCH: 32
+    install:
+        - python setup.py bdist_wheel --python-tag cp39 --plat-name win32
+
+  -
     matrix:
       only:
         - PYTHON_VERSION: 3.6
@@ -83,7 +104,7 @@ for:
     install:
         - python setup.py bdist_wheel --python-tag cp36 --plat-name win_amd64
 
-  - 
+  -
     matrix:
       only:
         - PYTHON_VERSION: 3.7
@@ -91,13 +112,30 @@ for:
     install:
         - python setup.py bdist_wheel --python-tag cp37 --plat-name win_amd64
 
+  -
+    matrix:
+      only:
+        - PYTHON_VERSION: 3.8
+          PYTHON_ARCH: 64
+    install:
+        - python setup.py bdist_wheel --python-tag cp38 --plat-name win_amd64
+
+  -
+    matrix:
+      only:
+        - PYTHON_VERSION: 3.9
+          PYTHON_ARCH: 64
+    install:
+        - python setup.py bdist_wheel --python-tag cp39 --plat-name win_amd64
+
+
 # Not a project with an msbuild file, build done at install.
 build: off
 
 before_test:
   - dir dist
   - for /r %%f in (dist/*) do @set wheelname=%%~nxf
-  - echo %wheelname% 
+  - echo %wheelname%
   - for /F "tokens=2 delims='" %%a in ('findstr __version__ py2exe\__init__.py') do @set ver=%%a
   - echo %ver%
 
@@ -108,13 +146,17 @@ test_script:
   - cd tests
   - python maketest.py
   - cd functional
+  - runner numpy_test
+  - runner pandas_test
   - runner tk_test
+  - del "C:\Program Files\Amazon\AWSCLI\sqlite3.dll" /F
   - runner sqlite_test
   - runner certifi_test
   - runner certifi_zip_test
   - runner pywin32_test
+  - runner requests_test
   - runner ssl_test
-  
+
 artifacts:
   - path: 'dist/$(wheelname)'
     name: $(wheelname)
@@ -122,13 +164,12 @@ artifacts:
 # Deploy build to BinTray
 deploy:
   provider: BinTray
-  username: alby128
+  username: albertosottile
   api_key:
-    secure: lAocj5KA9Z9x4BefQBIgNlQJbeW4qPBfCgYVBHMyOP3NgyhnMLmvR57ZCqtCKBlQ
-  subject: alby128
+    secure: XYmBCFZPoLq1hZazcxKJfMx2ueWDBXQg8h3rnOD8z/m/Kv11HuSVTFRDaDtGwKQz
+  subject: py2exe
   repo: py2exe
   package: py2exe
   version: $(ver)
   publish: true
   override: true
-    

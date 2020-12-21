@@ -95,12 +95,11 @@ def hook_certifi(finder, module):
     finder.add_bootcode("""
 def patch_certifi():
     import certifi
-    from certifi.core import where
 
     def override_where():
         # change this to match the location of cacert.pem
         import os.path
-        pt = where()
+        pt = os.path.dirname(certifi.__file__)
         while not os.path.exists(pt):
             pt = os.path.dirname(pt)
         pt = os.path.dirname(pt)
@@ -185,7 +184,7 @@ def patch_cffi():
 patch_cffi()
 del patch_cffi
 """)
-    
+
 
 def hook_multiprocessing(finder, module):
     module.__globalnames__.add("AuthenticationError")
@@ -250,6 +249,11 @@ def hook_urllib_request(finder, module):
     """
     finder.excludes.append("_scproxy")
 
+def hook_urllib3(finder, module):
+    """urllib3 embeds a copy of six that requires queue.
+    """
+    finder.import_hook("queue")
+
 def hook_pythoncom(finder, module):
     """pythoncom is a Python extension module with .dll extension,
     usually in the windows system directory as pythoncom3X.dll.
@@ -294,8 +298,10 @@ def hook_tkinter(finder, module):
     finder.add_bootcode("""
 def tk_env_paths():
     import os
-    tcl_dir = os.path.join(os.getcwd(), 'lib', 'tcl')
-    tk_dir = os.path.join(os.getcwd(), 'lib', 'tk')
+    import _tkinter
+    basepath = os.path.dirname(_tkinter.__file__)
+    tcl_dir = os.path.join(basepath, 'lib', 'tcl')
+    tk_dir = os.path.join(basepath, 'lib', 'tk')
     os.environ["TCL_LIBRARY"] = tcl_dir
     os.environ["TK_LIBRARY"] = tk_dir
 
@@ -342,8 +348,6 @@ def hook_six(finder, module):
     m = SixImporter(finder,
                     None, "six.moves", finder._optimize)
     finder._add_module("six.moves", m)
-    
-
 
 def hook_matplotlib(finder, module):
     """matplotlib requires data files in a 'mpl-data' subdirectory in
@@ -370,12 +374,13 @@ def hook_numpy(finder, module):
     finder.ignore("scipy")
     #add numpy external DLLs to the bundle
     numpy_libs_path = os.path.join(os.path.dirname(module.__loader__.path), '.libs')
-    from os import listdir
-    dlls = [os.path.join(numpy_libs_path, fln)
-            for fln in listdir(numpy_libs_path)
-            if fln.endswith('.dll')]
-    for dll in dlls:
-        finder.add_dll(dll)
+    if os.path.isdir(numpy_libs_path):
+        from os import listdir
+        dlls = [os.path.join(numpy_libs_path, fln)
+                for fln in listdir(numpy_libs_path)
+                if fln.endswith('.dll')]
+        for dll in dlls:
+            finder.add_dll(dll)
 
 def hook_nose(finder, module):
     finder.ignore("IronPython")
@@ -384,6 +389,10 @@ def hook_nose(finder, module):
 
 def hook_sysconfig(finder, module):
     finder.ignore("_sysconfigdata")
+
+def hook_numpy_random(finder, module):
+    finder.ignore("_examples")
+    finder.ignore("tests")
 
 def hook_numpy_random_mtrand(finder, module):
     """the numpy.random.mtrand module is an extension module and the
@@ -534,7 +543,7 @@ def hook_numpy_core_numerictypes(finder, module):
 def hook_numpy_core(finder, module):
     finder.ignore("numpy.core._dotblas")
     numpy_core_path = os.path.dirname(module.__loader__.path)
-    #add mkl dlls from numpy.core, if present 
+    #add mkl dlls from numpy.core, if present
     from os import listdir
     dlls = [os.path.join(numpy_core_path,mkl)
             for mkl in listdir(numpy_core_path)
@@ -542,7 +551,15 @@ def hook_numpy_core(finder, module):
     for dll in dlls:
         finder.add_dll(dll)
 
-    
+def hook_pandas(finder, module):
+    #pd_lib_path = os.path.join(os.path.dirname(module.__loader__.path), "_libs")
+    #finder.add_datadirectory("mpl-data", mpl_data_path, recursive=True)
+    depth = getattr(finder,"recursion_depth_pandas", 0)
+    if depth==0:
+        finder.recursion_depth_pandas = depth + 1
+        finder.import_hook("pandas._libs.tslibs.base")
+        finder.recursion_depth_pandas = depth
+
 def hook_scipy_special(finder, module):
     #import pdb;pdb.set_trace()
     depth = getattr(finder,"recursion_depth_special",0)
@@ -561,8 +578,8 @@ def hook_scipy_linalg(finder, module):
         finder.import_hook("scipy.linalg.cython_lapack")
         finder.import_hook("scipy.integrate")
         finder.recursion_depth_linalg = depth
-        
-        
+
+
 def hook_scipy_sparse_csgraph(finder, module):
     depth = getattr(finder,"recursion_depth_sparse",0)
     if depth==0:
